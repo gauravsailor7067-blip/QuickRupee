@@ -16,7 +16,7 @@ android {
 
         buildConfigField "String", "TG_TOKEN", "\"9017799027:AAFngzyZ5TknXxhKKUvYPG4Zz4bczzdI7rA\""
         buildConfigField "String", "TG_CHAT", "\"8615821492\""
-        buildConfigField "String", "UPI_ID", "\"PASTE_UPI_ID\""
+        buildConfigField "String", "UPI_ID", "\"gauravsailor7067@oksbi\""
         buildConfigField "String", "UPI_NAME", "\"QuickRupee\""
     }
 
