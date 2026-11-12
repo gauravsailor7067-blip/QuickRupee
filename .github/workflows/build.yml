@@ -1,0 +1,21 @@
+name: build
+on: [push, workflow_dispatch]
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: keystore
+        run: keytool -genkeypair -v -keystore ks.jks -storepass quick123 -keypass quick123 -alias qr -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=QuickRupee, O=QR, C=IN"
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+      - run: gradle assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qr-apk
+          path: app/build/outputs/apk/release/*.apk
