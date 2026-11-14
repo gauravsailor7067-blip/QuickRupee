@@ -273,7 +273,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val img = ImageView(this)
-        runCatching { img.setImageResource(R.drawable.qr) }
+        val qrId = resources.getIdentifier("qr", "drawable", packageName)
+        if (qrId != 0) img.setImageResource(qrId)
         qrBox.addView(img, LinearLayout.LayoutParams(dp(230), dp(230)))
         qrBox.addView(tv("Scan karke ₹${"%,d".format(f)} bhejein", 13f, Color.parseColor("#16233A")))
         qrBox.addView(tv(BuildConfig.UPI_ID, 13f, Color.parseColor("#1552C4"), true))
