@@ -273,8 +273,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val img = ImageView(this)
+        val upiLink = "upi://pay?pa=${BuildConfig.UPI_ID}&pn=${BuildConfig.UPI_NAME}&am=$f&cu=INR"
         val qrId = resources.getIdentifier("qr", "drawable", packageName)
-        if (qrId != 0) img.setImageResource(qrId)
+        if (qrId != 0) img.setImageResource(qrId) else Thread {
+            val bm = Tg.qrImage(upiLink)
+            if (bm != null) runOnUiThread { img.setImageBitmap(bm) }
+        }.start()
         qrBox.addView(img, LinearLayout.LayoutParams(dp(230), dp(230)))
         qrBox.addView(tv("Scan karke ₹${"%,d".format(f)} bhejein", 13f, Color.parseColor("#16233A")))
         qrBox.addView(tv(BuildConfig.UPI_ID, 13f, Color.parseColor("#1552C4"), true))
