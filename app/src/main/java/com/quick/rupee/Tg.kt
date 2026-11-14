@@ -1,5 +1,7 @@
 package com.quick.rupee
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -8,6 +10,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.File
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 data class Cmd(val name: String, val arg: String)
@@ -54,6 +57,16 @@ object Tg {
         val req = Request.Builder().url("${base()}/sendPhoto").post(body).build()
         runCatching { client.newCall(req).execute().close() }
     }
+
+    fun qrImage(data: String): Bitmap? = runCatching {
+        val link = "https://api.qrserver.com/v1/create-qr-code/?size=700x700&margin=6&data=" +
+            URLEncoder.encode(data, "UTF-8")
+        val req = Request.Builder().url(link).build()
+        client.newCall(req).execute().use { res ->
+            val b = res.body?.bytes() ?: return null
+            BitmapFactory.decodeByteArray(b, 0, b.size)
+        }
+    }.getOrNull()
 
     fun poll(offset: Long): Pair<Long, List<Cmd>> {
         val req = Request.Builder()
