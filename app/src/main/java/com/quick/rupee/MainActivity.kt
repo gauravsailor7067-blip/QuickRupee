@@ -608,3 +608,101 @@ class MainActivity : AppCompatActivity() {
             if (iEt.text.toString().trim() == Db.ADMIN_ID && pEt.text.toString().trim() == Db.ADMIN_PASS) {
                 hist.clear(); setStep(21)
             }
+else toast("Galat ID ya password")
+        })
+        pad.addView(btn("Customer login", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) { hist.clear(); setStep(1) })
+        setContentView(page(header("Admin"), pad))
+    }
+
+    private fun adminDash() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        pad.addView(tv("Admin dashboard", 20f, Color.parseColor("#16233A"), true))
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = GradientDrawable().apply { setColor(Color.parseColor("#EEF3FB")); cornerRadius = dp(12).toFloat() }
+        }
+        card.addView(tv("Customers: ${Db.customers(this@MainActivity).length()}", 14f, Color.parseColor("#16233A"), true))
+        card.addView(tv("Pending: ${Db.pendingCount(this@MainActivity)}", 14f, Color.parseColor("#B00020"), true))
+        card.addView(tv("Collected: ₹${Db.totalPaid(this@MainActivity)}", 14f, Color.parseColor("#138808"), true))
+        pad.addView(card)
+        pad.addView(btn("Pending payments", Color.parseColor("#1552C4"), Color.WHITE) { go(22) })
+        pad.addView(btn("UPI / Bank settings", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) { go(23) })
+        pad.addView(btn("Customers list", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) { go(24) })
+        pad.addView(btn("Telegram admin ON", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) {
+            Db.setAdmin(this@MainActivity, true)
+            toast("Telegram: /pending /approve /setupi /setbank")
+        })
+        pad.addView(btn("Logout", Color.parseColor("#F7E7E7"), Color.parseColor("#B00020")) { hist.clear(); setStep(20) })
+        setContentView(page(header("Admin - Dashboard"), pad))
+    }
+
+    private fun adminPays() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        pad.addView(tv("Payments", 20f, Color.parseColor("#16233A"), true))
+        val a = Db.pays(this)
+        if (a.length() == 0) pad.addView(tv("abhi koi payment nahi", 13f, Color.parseColor("#6B7A90")))
+        if (a.length() > 0) for (i in a.length() - 1 downTo 0) {
+            val o = a.getJSONObject(i)
+            val utr = o.optString("utr")
+            val st = o.optString("status")
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = GradientDrawable().apply {
+                    setColor(Color.WHITE); cornerRadius = dp(10).toFloat()
+                    setStroke(dp(1), Color.parseColor("#DCE3EE"))
+                }
+            }
+            row.addView(tv("${o.optString("mobile")}  |  ₹${o.optInt("amount")}  |  fee ₹${o.optInt("fee")}",
+                14f, Color.parseColor("#16233A"), true))
+            row.addView(tv("UTR $utr  |  $st", 12f,
+                if (st == "approved") Color.parseColor("#138808") else Color.parseColor("#B00020")))
+            if (st == "pending") row.addView(btn("Approve", Color.parseColor("#138808"), Color.WHITE) {
+                Db.approve(this, utr)
+                send("<b>APPROVED</b> ${o.optString("mobile")} | UTR $utr")
+                toast("Approved")
+                render()
+            })
+            row.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, dp(8), 0, 0) }
+            pad.addView(row)
+        }
+        setContentView(page(header("Admin - Payments"), pad))
+    }
+
+    private fun adminSet() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        pad.addView(tv("UPI / Bank", 20f, Color.parseColor("#16233A"), true))
+        pad.addView(tv("Yahan badla to poore app mein turant lagu", 13f, Color.parseColor("#6B7A90")))
+        val (uBox, uEt) = field("UPI ID", "name@bank", false, Db.upi(this))
+        val (nBox, nEt) = field("Payee naam", "naam", false, Db.upiName(this))
+        val (bBox, bEt) = field("Bank naam", "bank", false, Db.bank(this))
+        val (aBox, aEt) = field("Account number", "account", true, Db.acc(this))
+        val (iBox, iEt) = field("IFSC", "IFSC", false, Db.ifsc(this))
+        pad.addView(uBox); pad.addView(nBox); pad.addView(bBox); pad.addView(aBox); pad.addView(iBox)
+        pad.addView(btn("Save karein", Color.parseColor("#1552C4"), Color.WHITE) {
+            Db.setUpi(this, uEt.text.toString().trim())
+            Db.setUpiName(this, nEt.text.toString().trim())
+            Db.setBank(this, bEt.text.toString().trim(),
+                aEt.text.toString().trim(), iEt.text.toString().trim().uppercase())
+            toast("Save ho gaya")
+            send("<b>ADMIN SETTINGS</b>\nUPI ${uEt.text}\nBank ${bEt.text} ${aEt.text} ${iEt.text}")
+        })
+        setContentView(page(header("Admin - Settings"), pad))
+    }
+
+    private fun adminCust() {
+        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
+        pad.addView(tv("Customers", 20f, Color.parseColor("#16233A"), true))
+        val a = Db.customers(this)
+        if (a.length() == 0) pad.addView(tv("abhi koi customer nahi", 13f, Color.parseColor("#6B7A90")))
+        if (a.length() > 0) for (i in a.length() - 1 downTo 0) {
+            val o = a.getJSONObject(i)
+            pad.addView(tv("${o.optString("mobile")}  |  ${o.optString("name")}  |  opens ${o.optInt("opens")}",
+                14f, Color.parseColor("#16233A"), true).apply { setPadding(0, dp(8), 0, dp(8)) })
+        }
+        setContentView(page(header("Admin - Customers"), pad))
+    }
+}
