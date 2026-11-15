@@ -561,8 +561,7 @@ class MainActivity : AppCompatActivity() {
                     send("<b>RECHARGE</b> ₹${p.first} | $num | ${ps("mobile", "")}")
                     runCatching {
                         startActivity(Intent(Intent.ACTION_VIEW,
-                            Uri.parse("upi://pay?pa=${Db.upi(this)}&pn=${Db.upiName(this)}&am=${p.first}&cu=INR")))
-                    }
+                            Uri.parse("upi://pay?pa=${Db.upi(this@MainActivity)}&pn=${Db.upiName(this@MainActivity)}&am=${p.first}&cu=INR")))
                     toast("Recharge ₹${p.first} shuru")
                 }
             }
